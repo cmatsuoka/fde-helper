@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -23,8 +24,11 @@ type fdeHelperKeyUnsealer struct{}
 
 func (u *fdeHelperKeyUnsealer) UnsealKey(volumeName, sourceDevicePath string, p sb.Prompter) (key, resealToken []byte, err error) {
 	key, err = ioutil.ReadFile(unsealedKeyPath)
+	if err != nil {
+		return key, nil, fmt.Errorf("cannot read key file: %v", err)
+	}
 	if len(key) != unsealedKeyLen {
-		err = fmt.Errorf("unexpected key length (%d)", len(key))
+		return key, nil, fmt.Errorf("unexpected key length (%d)", len(key))
 	}
 	return key, nil, err
 }
@@ -104,9 +108,9 @@ func update(p []byte) error {
 }
 
 type unlockParams struct {
-	volumeName       string `json:"volume-name"`
-	sourceDevicePath string `json:"source-device-path"`
-	lockKeysOnFinish bool   `json:"lock-keys-on-finish"`
+	VolumeName       string `json:"volume-name"`
+	SourceDevicePath string `json:"source-device-path"`
+	LockKeysOnFinish bool   `json:"lock-keys-on-finish"`
 }
 
 // unlock unseals the key and unlock the encrypted volume.
@@ -116,14 +120,23 @@ func unlock(p []byte) error {
 		return err
 	}
 
+	if params.VolumeName == "" {
+		return fmt.Errorf("volume name not specified")
+	}
+	if params.SourceDevicePath == "" {
+		return fmt.Errorf("source device path not specified")
+	}
+
 	keyUnsealer := &fdeHelperKeyUnsealer{}
+
+	prompter := &sb.SystemPrompter{}
 
 	options := &sb.ActivateWithTPMSealedKeyOptions{
 		PINTries:            1,
 		RecoveryKeyTries:    3,
-		LockSealedKeyAccess: params.lockKeysOnFinish,
+		LockSealedKeyAccess: params.LockKeysOnFinish,
 	}
-	ok, err := sb.ActivateVolumeWithKeyUnsealer(params.volumeName, params.sourceDevicePath, keyUnsealer, nil, options)
+	ok, err := sb.ActivateVolumeWithKeyUnsealer(params.VolumeName, params.SourceDevicePath, keyUnsealer, prompter, options)
 	if err != nil {
 		return err
 	}
@@ -169,7 +182,7 @@ func main() {
 	// read JSON-formated parameters from stdin
 	reader := bufio.NewReader(os.Stdin)
 	p, err := reader.ReadBytes('\n')
-	if err != nil {
+	if err != nil && err != io.EOF {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
