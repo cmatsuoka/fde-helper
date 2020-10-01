@@ -11,6 +11,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 	sb "github.com/snapcore/secboot"
+	"github.com/snapcore/snapd/fdehelper"
 )
 
 var _ sb.KeyUnsealer = (*fdeHelperKeyUnsealer)(nil)
@@ -43,34 +44,10 @@ func supported() error {
 	return nil
 }
 
-type bootAsset struct {
-	Role   string   `json:"role"`
-	Name   string   `json:"name"`
-	Hashes []string `json:"hashes"`
-}
-
-type bootChain struct {
-	BrandID        string      `json:"brand-id"`
-	Model          string      `json:"model"`
-	Grade          string      `json:"grade"`
-	ModelSignKeyID string      `json:"model-sign-key-id"`
-	AssetChain     []bootAsset `json:"asset-chain"`
-	Kernel         string      `json:"kernel"`
-	// KernelRevision is the revision of the kernel snap. It is empty if
-	// kernel is unasserted, in which case always reseal.
-	KernelRevision string   `json:"kernel-revision"`
-	KernelCmdlines []string `json:"kernel-cmdlines"`
-}
-
-type provisionParams struct {
-	Key        string      `json:"key"`
-	BootChains []bootChain `json:"boot-chains"`
-}
-
 // initialProvision initializes the key sealing system (e.g. provision the TPM
 // if TPM is used) and stores the key in a secure place.
 func initialProvision(p []byte) error {
-	var params provisionParams
+	var params fdehelper.InitialProvisionParams
 	if err := json.Unmarshal(p, &params); err != nil {
 		return err
 	}
@@ -91,13 +68,9 @@ func initialProvision(p []byte) error {
 	return nil
 }
 
-type updateParams struct {
-	BootChains []bootChain `json:"boot-chains"`
-}
-
 // update reseals or updates the stored key policies.
 func update(p []byte) error {
-	var params provisionParams
+	var params fdehelper.UpdateParams
 	if err := json.Unmarshal(p, &params); err != nil {
 		return err
 	}
@@ -107,15 +80,9 @@ func update(p []byte) error {
 	return nil
 }
 
-type unlockParams struct {
-	VolumeName       string `json:"volume-name"`
-	SourceDevicePath string `json:"source-device-path"`
-	LockKeysOnFinish bool   `json:"lock-keys-on-finish"`
-}
-
 // unlock unseals the key and unlock the encrypted volume.
 func unlock(p []byte) error {
-	var params unlockParams
+	var params fdehelper.UnlockParams
 	if err := json.Unmarshal(p, &params); err != nil {
 		return err
 	}
