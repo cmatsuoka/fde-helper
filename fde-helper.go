@@ -23,7 +23,7 @@ const (
 
 type fdeHelperKeyUnsealer struct{}
 
-func (u *fdeHelperKeyUnsealer) UnsealKey(volumeName, sourceDevicePath string, p sb.Prompter) (key, resealToken []byte, err error) {
+func (u *fdeHelperKeyUnsealer) UnsealKey(volumeName, sourceDevicePath string, p sb.Prompter, options *sb.ActivateVolumeOptions) (key, activatioinData []byte, err error) {
 	key, err = ioutil.ReadFile(unsealedKeyPath)
 	if err != nil {
 		return key, nil, fmt.Errorf("cannot read key file: %v", err)
@@ -32,6 +32,10 @@ func (u *fdeHelperKeyUnsealer) UnsealKey(volumeName, sourceDevicePath string, p 
 		return key, nil, fmt.Errorf("unexpected key length (%d)", len(key))
 	}
 	return key, nil, err
+}
+
+func (u *fdeHelperKeyUnsealer) ActivationDataType() string {
+	return ""
 }
 
 func (u *fdeHelperKeyUnsealer) UnderstoodError(e error, isCryptsetupError bool) (ok bool, reason sb.RecoveryKeyUsageReason, err error) {
@@ -98,10 +102,10 @@ func unlock(p []byte) error {
 
 	prompter := &sb.SystemPrompter{}
 
-	options := &sb.ActivateWithTPMSealedKeyOptions{
-		PINTries:            1,
-		RecoveryKeyTries:    3,
-		LockSealedKeyAccess: params.LockKeysOnFinish,
+	options := &sb.ActivateVolumeOptions{
+		PassphraseTries:  1,
+		RecoveryKeyTries: 3,
+		LockSealedKeys:   params.LockKeysOnFinish,
 	}
 	ok, err := sb.ActivateVolumeWithKeyUnsealer(params.VolumeName, params.SourceDevicePath, keyUnsealer, prompter, options)
 	if err != nil {
